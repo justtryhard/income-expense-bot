@@ -11,7 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
 
-from config import API_TOKEN, DB_NAME
+from config import API_TOKEN, DB_NAME, ALLOWED_USER_ID
 from db import SQLiteConnection, HistoryRepository
 
 # ===== Логирование =====
@@ -51,6 +51,9 @@ cancel_kb = ReplyKeyboardMarkup(
 # ===== START =====
 @dp.message(F.text == "/start")
 async def start_handler(message: Message):
+    if not is_allowed(message.from_user.id):
+        await message.answer("Доступ запрещен!")
+        return
     await message.answer("Привет! Выбери действие:", reply_markup=main_menu)
 
 # ===== Отмена (должна быть выше обработчиков ввода) =====
@@ -71,6 +74,9 @@ async def cancel_all(message: Message, state: FSMContext):
 # ===== ДОБАВЛЕНИЕ (без комментария) =====
 @dp.message(F.text.in_(["Новый расход", "Новый доход"]))
 async def add_start(message: Message, state: FSMContext):
+    if not is_allowed(message.from_user.id):
+        await message.answer("Доступ запрещен!")
+        return
     category = "expense" if message.text == "Новый расход" else "income"
     await state.update_data(category=category)
     await state.set_state(AddEntry.waiting_for_amount)
@@ -97,6 +103,9 @@ calendar = SimpleCalendar()
 
 @dp.message(F.text == "Статистика")
 async def stats_start(message: Message, state: FSMContext):
+    if not is_allowed(message.from_user.id):
+        await message.answer("Доступ запрещен!")
+        return
     await state.set_state(StatsPeriod.waiting_for_start)
     await message.answer("Выбери начальную дату:",
                          reply_markup=await calendar.start_calendar())
@@ -197,6 +206,9 @@ async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarC
 
         await state.clear()
     await callback.answer()
+
+def is_allowed(user_id: int) -> bool:
+    return user_id == ALLOWED_USER_ID
 
 # ===== Запуск =====
 if __name__ == "__main__":
