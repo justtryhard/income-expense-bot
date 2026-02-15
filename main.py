@@ -1,0 +1,215 @@
+import logging
+import asyncio
+import io
+import matplotlib.pyplot as plt
+import numpy as np
+from datetime import timedelta, datetime, time
+from aiogram import types
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, CallbackQuery
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback, DialogCalendar, DialogCalendarCallback
+
+from config import API_TOKEN, DB_NAME
+from db import SQLiteConnection, HistoryRepository
+
+# ===== Логирование =====
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ===== Инициализация бота =====
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
+
+# ===== База данных =====
+conn = SQLiteConnection(DB_NAME)
+repository = HistoryRepository(conn)
+repository.create_table()
+
+
+# ===== FSM =====
+class AddEntry(StatesGroup):
+    waiting_for_amount = State()
+    waiting_for_comment = State()
+
+
+class StatsPeriod(StatesGroup):     #  FSM для выбора периода
+    waiting_for_start = State()
+    waiting_for_end = State()
+
+
+
+
+# ===== Кнопки =====
+main_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Новый расход")],
+        [KeyboardButton(text="Новый доход")],
+        [KeyboardButton(text="Статистика")]
+    ],
+    resize_keyboard=True
+)
+
+cancel_kb = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="❌ Отмена")]],
+    resize_keyboard=True
+)
+
+# ===== START =====
+@dp.message(F.text == "/start")
+async def start_handler(message: Message):
+    await message.answer("Привет! Выбери действие:", reply_markup=main_menu)
+
+
+# ===== ДОБАВЛЕНИЕ =====
+@dp.message(F.text.in_(["Новый расход", "Новый доход"]))
+async def add_start(message: Message, state: FSMContext):
+    category = "expense" if message.text == "Новый расход" else "income"
+    await state.update_data(category=category)
+    await state.set_state(AddEntry.waiting_for_amount)
+    await message.answer("Введите сумму:")
+
+
+@dp.message(AddEntry.waiting_for_amount)
+async def add_amount(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("Сумма должна быть числом, попробуй ещё раз:")
+        return
+    await state.update_data(amount=int(message.text))
+    await state.set_state(AddEntry.waiting_for_comment)
+    await message.answer("Введи комментарий:")
+
+
+@dp.message(AddEntry.waiting_for_comment)
+async def add_comment(message: Message, state: FSMContext):
+    data = await state.get_data()
+    repository.add_record(
+        user_id=message.from_user.id,
+        category=data["category"],
+        amount=data["amount"],
+        comment=message.text
+    )
+    await message.answer("Сохранено ✅", reply_markup=main_menu)
+    await state.clear()
+
+
+# ===== СТАТИСТИКА =====
+calendar = SimpleCalendar()
+
+
+@dp.message(F.text == "Статистика")
+async def stats_start(message: Message, state: FSMContext):
+    await state.set_state(StatsPeriod.waiting_for_start)
+    await message.answer("Выбери начальную дату:",
+                         reply_markup=await calendar.start_calendar())
+
+
+@dp.callback_query(SimpleCalendarCallback.filter(), StatsPeriod.waiting_for_start)
+async def stats_start_date(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
+    selected, start_date = await calendar.process_selection(callback, callback_data)
+    if selected:
+        start_date = start_date.date()  # <- убираем время
+        await state.update_data(start=start_date)
+        await state.set_state(StatsPeriod.waiting_for_end)
+        await callback.message.answer(
+            "Выбери конечную дату:",
+            reply_markup=await calendar.start_calendar()
+        )
+    await callback.answer()
+
+
+@dp.callback_query(SimpleCalendarCallback.filter(), StatsPeriod.waiting_for_end)
+async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
+    selected, end_date = await calendar.process_selection(callback, callback_data)
+    if selected:
+        end_date = end_date.date()  # <- убираем время
+        data = await state.get_data()
+        start_date = data["start"]  # уже date
+
+
+        if end_date < start_date:
+            await callback.message.answer("Конечная дата меньше начальной ❌")
+            await state.clear()
+            return
+
+        stats = repository.get_stats_for_period(  # или get_detailed_stats
+            callback.from_user.id, start_date, end_date
+        )
+        income_sum = stats['income_sum']
+        income_count = stats['income_count']
+        expense_sum = stats['expense_sum']
+        expense_count = stats['expense_count']
+        balance = income_sum - expense_sum
+
+        text = (
+            f"📊 Статистика за \n{start_date.strftime('%Y-%m-%d')} — {end_date.strftime('%Y-%m-%d')}\n\n"
+            f"Доходы: {income_sum} ₽ (операций: {income_count})\n"
+            f"Расходы: {expense_sum} ₽ (операций: {expense_count})\n\n"
+            f"Итог: {balance} ₽"
+        )
+
+        await callback.message.answer(text, reply_markup=main_menu)
+
+        if 27 <= (end_date - start_date).days <= 31:
+            daily_data = repository.get_daily_stats(
+                callback.from_user.id, start_date, end_date
+            )
+
+            if daily_data:
+                # Преобразуем результат в словарь: дата -> (доход, расход)
+                data_dict = {}
+                for row in daily_data:
+                    d, inc, exp = row
+                    if isinstance(d, str):
+                        d = datetime.strptime(d, '%Y-%m-%d').date()
+                    data_dict[d] = (inc, exp)
+
+                # Генерируем все даты диапазона
+                dates = []
+                incomes = []
+                expenses = []
+                current = start_date
+                while current <= end_date:
+                    dates.append(current.strftime('%Y-%m-%d'))  # для подписей
+                    inc, exp = data_dict.get(current, (0, 0))
+                    incomes.append(inc)
+                    expenses.append(exp)
+                    current += timedelta(days=1)
+
+                # Строим столбчатую диаграмму
+                plt.figure(figsize=(12, 6))
+                x = range(len(dates))
+                width = 0.35
+
+                plt.bar([i - width / 2 for i in x], incomes, width, label='Доход', color='green', alpha=0.7)
+                plt.bar([i + width / 2 for i in x], expenses, width, label='Расход', color='red', alpha=0.7)
+
+                plt.xlabel('Дата')
+                plt.ylabel('Сумма')
+                plt.title('Доходы и расходы по дням')
+                plt.xticks(x, dates, rotation=45)
+                plt.legend()
+                plt.tight_layout()
+
+                buf = io.BytesIO()
+                plt.savefig(buf, format='png')
+                buf.seek(0)
+                plt.close()
+
+                await callback.message.answer_photo(
+                    photo=types.BufferedInputFile(buf.read(), filename='chart.png'),
+                    caption="Диаграмма доходов и расходов"
+                )
+            else:
+                await callback.message.answer("Нет данных для построения графика.")
+
+        await state.clear()
+
+    await callback.answer()
+
+
+# ===== Запуск =====
+if __name__ == "__main__":
+    asyncio.run(dp.start_polling(bot))
