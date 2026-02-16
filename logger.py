@@ -2,6 +2,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
+# todo!
+
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 

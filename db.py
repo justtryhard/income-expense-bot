@@ -4,6 +4,9 @@ from config import DB_NAME
 
 
 class SQLiteConnection:
+    """
+    Подключение к БД
+    """
     def __init__(self, db_name: str):
         self.db_name = db_name
 
@@ -18,6 +21,9 @@ class SQLiteConnection:
 
 
 class HistoryRepository:
+    """
+    Работа с БД
+    """
     def __init__(self, connection: SQLiteConnection):
         self.connection = connection
 
@@ -40,7 +46,6 @@ class HistoryRepository:
             INSERT INTO history (user_id, category, amount, comment)
             VALUES (?, ?, ?, ?)
             """, (user_id, category, amount, comment))
-
 
     def get_stats_for_period(self, user_id: int, start_date, end_date):
         with self.connection.get_connection() as conn:
@@ -76,16 +81,3 @@ class HistoryRepository:
             """, (user_id, start_date, end_date))
             rows = cursor.fetchall()
         return [(row[0], row[1] or 0, row[2] or 0) for row in rows]
-
-    # def get_stats_for_period(self, user_id: int, start_date, end_date):
-    #     with self.connection.get_connection() as conn:
-    #         cursor = conn.execute("""
-    #         SELECT
-    #             COALESCE(SUM(CASE WHEN category='income' THEN amount END), 0),
-    #             COALESCE(SUM(CASE WHEN category='expense' THEN amount END), 0)
-    #         FROM history
-    #         WHERE user_id = ?
-    #         AND date(created_at) BETWEEN ? AND ?
-    #         """, (user_id, start_date, end_date))
-    #
-    #         return cursor.fetchone()
