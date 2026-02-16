@@ -70,6 +70,7 @@ async def cancel_any(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Действие отменено.", reply_markup=main_menu)
 
+
 # @dp.message(AddEntry.waiting_for_amount, F.text == "❌ Отмена")
 # async def cancel_add(message: Message, state: FSMContext):
 #     await state.clear()
@@ -101,8 +102,8 @@ async def add_start(message: Message, state: FSMContext):
 # обработка введённой суммы
 @dp.message(AddEntry.waiting_for_amount)
 async def add_amount(message: Message, state: FSMContext):
-    if not message.text.isdigit():
-        await message.answer("❌ Сумма должна быть целым числом, попробуй ещё раз.")
+    if not valid_input(message.text):
+        await message.answer("❌ Сумма должна быть целым положительным числом.")
         return
 
     data = await state.get_data()
@@ -243,6 +244,14 @@ async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarC
         await state.clear()
     await callback.answer()
 
+
+def valid_input(summ: str) -> bool:
+    """
+    проверяем валидность введённой суммы
+    """
+    if summ.isdigit() and int(summ) > 0:
+        return True
+    return False
 
 
 def is_allowed(user_id: int) -> bool:
