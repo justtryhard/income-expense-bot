@@ -73,6 +73,7 @@ pip install -r requirements.txt
 ```
 API_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
 DB_NAME = "bot.db"
+ALLOWED_USER_ID = "YOUR_USER_ID"
 ```
 
 
