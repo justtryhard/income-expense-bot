@@ -81,3 +81,45 @@ class HistoryRepository:
             """, (user_id, start_date, end_date))
             rows = cursor.fetchall()
         return [(row[0], row[1] or 0, row[2] or 0) for row in rows]
+
+    def get_records_by_date(self, user_id, date):
+        with self.connection.get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT id, category, amount
+                FROM history
+                WHERE user_id = ? AND date(created_at) = ?
+                ORDER BY id
+            """, (user_id, date))
+            return cursor.fetchall()
+
+    def get_record_by_id(self, record_id, user_id):
+        with self.connection.get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT id, category, amount
+                FROM history
+                WHERE id = ? AND user_id = ?
+            """, (record_id, user_id))
+            return cursor.fetchone()
+
+    def update_amount(self, record_id, user_id, new_amount):
+        with self.connection.get_connection() as conn:
+            conn.execute("""
+                UPDATE history
+                SET amount = ?
+                WHERE id = ? AND user_id = ?
+            """, (new_amount, record_id, user_id))
+
+    def update_category(self, record_id, user_id, new_category):
+        with self.connection.get_connection() as conn:
+            conn.execute("""
+                UPDATE history
+                SET category = ?
+                WHERE id = ? AND user_id = ?
+            """, (new_category, record_id, user_id))
+
+    def delete_record(self, record_id, user_id):
+        with self.connection.get_connection() as conn:
+            conn.execute("""
+                DELETE FROM history
+                WHERE id = ? AND user_id = ?
+            """, (record_id, user_id))

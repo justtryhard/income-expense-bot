@@ -6,7 +6,15 @@ import matplotlib.pyplot as plt
 from datetime import timedelta, datetime
 from aiogram import types
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, CallbackQuery, FSInputFile
+from aiogram.types import (
+    Message,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    CallbackQuery,
+    FSInputFile,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton
+)
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -29,22 +37,34 @@ repository.create_table()
 
 #  FSM
 class AddEntry(StatesGroup):
+    """Состояние ожидания суммы при добавлении дохода/расхода"""
     waiting_for_amount = State()
 
 
 class StatsPeriod(StatesGroup):
+    """Состояния выбора начальной и конечной даты для статистики"""
     waiting_for_start = State()
     waiting_for_end = State()
 
+
+class EditEntry(StatesGroup):
+    """Состояние ожидания ID записи для редактирования"""
+    waiting_for_id = State()
+
+
+class EditAmount(StatesGroup):
+    """Состояние ожидания новой суммы при редактировании"""
+    waiting_for_amount = State()
 
 # Кнопки основного меню
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Новый расход")],
         [KeyboardButton(text="Новый доход")],
-        [KeyboardButton(text="Статистика")]
+        [KeyboardButton(text="Статистика")],
+        [KeyboardButton(text="Редактировать")]
     ],
-    resize_keyboard=True
+    resize_keyboard=True  # кнопки подстраиваются под размер экрана
 )
 
 # Кнопка "назад"
@@ -54,7 +74,7 @@ cancel_kb = ReplyKeyboardMarkup(
 )
 
 
-# START
+# Обработчики команд
 @dp.message(F.text == "/start")
 async def start_handler(message: Message):
     if not is_allowed(message.from_user.id):
@@ -71,12 +91,6 @@ async def cancel_any(message: Message, state: FSMContext):
     await message.answer("Действие отменено.", reply_markup=main_menu)
 
 
-# @dp.message(AddEntry.waiting_for_amount, F.text == "❌ Отмена")
-# async def cancel_add(message: Message, state: FSMContext):
-#     await state.clear()
-#     await message.answer("Добавление отменено.", reply_markup=main_menu)
-
-
 @dp.message(F.text == "/cancel")
 async def cancel_all(message: Message, state: FSMContext):
     current_state = await state.get_state()
@@ -87,9 +101,14 @@ async def cancel_all(message: Message, state: FSMContext):
     await message.answer("Действие отменено.", reply_markup=main_menu)
 
 
-# Добавление
+# Добавление записи
 @dp.message(F.text.in_(["Новый расход", "Новый доход"]))
 async def add_start(message: Message, state: FSMContext):
+    """
+    Начало добавления новой операции.
+    Устанавливает категорию (income/expense) в зависимости от нажатой кнопки
+    и переводит бота в состояние ожидания суммы.
+    """
     if not is_allowed(message.from_user.id):
         await message.answer("🚫 Доступ запрещен!")
         return
@@ -102,6 +121,9 @@ async def add_start(message: Message, state: FSMContext):
 # обработка введённой суммы
 @dp.message(AddEntry.waiting_for_amount)
 async def add_amount(message: Message, state: FSMContext):
+    """
+    Обработка введённой суммы, сохранение записи в БД и отправка картинки-подтверждения.
+    """
     if not valid_input(message.text):
         await message.answer("❌ Сумма должна быть целым положительным числом.")
         return
@@ -109,6 +131,7 @@ async def add_amount(message: Message, state: FSMContext):
     data = await state.get_data()
     category = data["category"]
 
+    # Сохранение записи в БД (комментарий пустой, т.к. по ТЗ не нужен)
     repository.add_record(
         user_id=message.from_user.id,
         category=data["category"],
@@ -130,11 +153,14 @@ async def add_amount(message: Message, state: FSMContext):
 
 
 # Статистика
-calendar = SimpleCalendar()
+calendar = SimpleCalendar()   # объект для работы с календарём
 
 
 @dp.message(F.text == "Статистика")
 async def stats_start(message: Message, state: FSMContext):
+    """
+    Запуск сбора статистики: запрос начальной даты через календарь.
+    """
     if not is_allowed(message.from_user.id):
         await message.answer("🚫 Доступ запрещен!")
         return
@@ -143,9 +169,148 @@ async def stats_start(message: Message, state: FSMContext):
                          reply_markup=await calendar.start_calendar())
 
 
+@dp.message(F.text == "Редактировать")
+async def edit_start(message: Message, state: FSMContext):
+    """
+    Падаем в редактирование. Запрос ID записи.
+    """
+    if not is_allowed(message.from_user.id):
+        await message.answer("🚫 Доступ запрещен!")
+        return
+
+    await state.set_state(EditEntry.waiting_for_id)
+    await message.answer("Введи ID записи для редактирования:", reply_markup=cancel_kb)
+
+
+@dp.callback_query(F.data.startswith("edit_type:"))
+async def edit_type_callback(callback: CallbackQuery):
+    """
+    Обработка нажатия на кнопку "Изменить тип" в инлайн-меню.
+    Меняет категорию записи на противоположную (доход -> расход и наоборот).
+    """
+    record_id = int(callback.data.split(":")[1])
+
+    record = repository.get_record_by_id(
+        record_id, callback.from_user.id
+    )
+
+    if not record:
+        await callback.answer("Запись не найдена", show_alert=True)
+        return
+
+    _, category, _ = record
+    new_category = "expense" if category == "income" else "income"
+
+    repository.update_category(
+        record_id,
+        callback.from_user.id,
+        new_category
+    )
+
+    photo_file = FSInputFile("media/red.jpg")
+    caption_text = "✅ Тип успешно изменён."
+
+    await callback.message.answer_photo(photo=photo_file, caption=caption_text, reply_markup=main_menu)
+    await callback.answer()
+
+
+@dp.message(EditEntry.waiting_for_id)
+async def edit_get_id(message: Message, state: FSMContext):
+    """
+    Получаем ID записи от пользователя, проверяем существование и показываем
+    инлайн-меню с действиями (изменить тип, сумму, удалить).
+    """
+    if not message.text.isdigit():
+        await message.answer("❌ ID должен быть целым числом.")
+        return
+
+    record_id = int(message.text)
+
+    record = repository.get_record_by_id(
+        record_id, message.from_user.id
+    )
+
+    if not record:
+        await message.answer("❌ Запись не найдена.")
+        return
+
+    id_, category, amount = record
+    type_label = "Доход" if category == "income" else "Расход"
+
+    await message.answer(
+        f"ID: {id_}\n"
+        f"Тип: {type_label}\n"
+        f"Сумма: {amount} ₽",
+        reply_markup=edit_actions_kb(id_)
+    )
+
+    await state.clear()
+
+
+@dp.callback_query(F.data.startswith("delete:"))
+async def delete_callback(callback: CallbackQuery):
+    """
+    Обработка кнопки "Удалить" – удаляем запись из БД.
+    """
+    record_id = int(callback.data.split(":")[1])
+
+    repository.delete_record(
+        record_id,
+        callback.from_user.id
+    )
+    photo_file = FSInputFile("media/delete.jpg")
+    caption_text = "🗑 Запись удалена."
+
+    await callback.message.answer_photo(photo=photo_file, caption=caption_text, reply_markup=main_menu)
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("edit_amount:"))
+async def edit_amount_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработка кнопки "Изменить сумму". Сохраняем ID записи в состояние
+    и переводим бота в режим ожидания новой суммы.
+    """
+    record_id = int(callback.data.split(":")[1])
+
+    await state.update_data(record_id=record_id)
+    await state.set_state(EditAmount.waiting_for_amount)
+
+    await callback.message.answer("Введи новую сумму:", reply_markup=cancel_kb)
+    await callback.answer()
+
+
+@dp.message(EditAmount.waiting_for_amount)
+async def process_new_amount(message: Message, state: FSMContext):
+    """
+    Получаем новую сумму, обновляем запись в БД.
+    """
+    if not valid_input(message.text):
+        await message.answer("❌ Сумма должна быть положительным числом.")
+        return
+
+    data = await state.get_data()
+    record_id = data["record_id"]
+
+    repository.update_amount(
+        record_id,
+        message.from_user.id,
+        int(message.text)
+    )
+
+    photo_file = FSInputFile("media/red_value.jpg")
+    caption_text = "✅ Сумма обновлена."
+
+    await message.answer_photo(photo=photo_file, caption=caption_text, reply_markup=main_menu)
+    await state.clear()
+
+
 # инпут начальной даты
 @dp.callback_query(SimpleCalendarCallback.filter(), StatsPeriod.waiting_for_start)
 async def stats_start_date(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
+    """
+    Получаем начальную дату из календаря, сохраняем в состояние и запрашиваем конечную.
+    """
     selected, start_date = await calendar.process_selection(callback, callback_data)
     if selected:
         start_date = start_date.date()
@@ -161,6 +326,11 @@ async def stats_start_date(callback: CallbackQuery, callback_data: SimpleCalenda
 # инпут конечной даты
 @dp.callback_query(SimpleCalendarCallback.filter(), StatsPeriod.waiting_for_end)
 async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
+    """
+    Получаем конечную дату, проверяем, что она не раньше начальной,
+    формируем текстовый отчёт, а также список операций за день (если выбран один день)
+    и график (если диапазон от недели до месяца).
+    """
     selected, end_date = await calendar.process_selection(callback, callback_data)
     if selected:
         end_date = end_date.date()
@@ -189,6 +359,22 @@ async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarC
         )
 
         await callback.message.answer(text, reply_markup=main_menu)
+
+        if start_date == end_date:
+            records = repository.get_records_by_date(
+                callback.from_user.id, start_date
+            )
+
+            if records:
+                text_records = f"\n\n📋 Операции за {start_date}:\n"
+                for record_id, category, amount in records:
+                    type_label = "Доход" if category == "income" else "Расход"
+                    text_records += f"ID {record_id} — {type_label} — {amount} ₽\n"
+
+                await callback.message.answer(text_records)
+            else:
+                await callback.message.answer("Операций за этот день нет.")
+
 
         # если пользователь запросил от недели до месяца, выдаём график:
         if 6 <= (end_date - start_date).days <= 31:
@@ -243,6 +429,35 @@ async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarC
 
         await state.clear()
     await callback.answer()
+
+
+def edit_actions_kb(record_id: int):
+    """
+    Создаёт инлайн-клавиатуру с кнопками действий для конкретной записи.
+    Принимает ID записи, подставляет его в callback_data.
+    """
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🔁 Изменить тип",
+                    callback_data=f"edit_type:{record_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💰 Изменить сумму",
+                    callback_data=f"edit_amount:{record_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🗑 Удалить",
+                    callback_data=f"delete:{record_id}"
+                )
+            ]
+        ]
+    )
 
 
 def valid_input(summ: str) -> bool:
