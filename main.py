@@ -56,6 +56,7 @@ class EditAmount(StatesGroup):
     """Состояние ожидания новой суммы при редактировании"""
     waiting_for_amount = State()
 
+
 # Кнопки основного меню
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
@@ -153,9 +154,6 @@ async def add_amount(message: Message, state: FSMContext):
 
 
 # Статистика
-calendar = SimpleCalendar()   # объект для работы с календарём
-
-
 @dp.message(F.text == "Статистика")
 async def stats_start(message: Message, state: FSMContext):
     """
@@ -165,6 +163,7 @@ async def stats_start(message: Message, state: FSMContext):
         await message.answer("🚫 Доступ запрещен!")
         return
     await state.set_state(StatsPeriod.waiting_for_start)
+    calendar = SimpleCalendar()  # объект для работы с календарём
     await message.answer("Выбери начальную дату:",
                          reply_markup=await calendar.start_calendar())
 
@@ -311,6 +310,7 @@ async def stats_start_date(callback: CallbackQuery, callback_data: SimpleCalenda
     """
     Получаем начальную дату из календаря, сохраняем в состояние и запрашиваем конечную.
     """
+    calendar = SimpleCalendar()  # объект для работы с календарём
     selected, start_date = await calendar.process_selection(callback, callback_data)
     if selected:
         start_date = start_date.date()
@@ -331,6 +331,7 @@ async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarC
     формируем текстовый отчёт, а также список операций за день (если выбран один день)
     и график (если диапазон от недели до месяца).
     """
+    calendar = SimpleCalendar()  # объект для работы с календарём
     selected, end_date = await calendar.process_selection(callback, callback_data)
     if selected:
         end_date = end_date.date()
@@ -374,7 +375,6 @@ async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarC
                 await callback.message.answer(text_records)
             else:
                 await callback.message.answer("Операций за этот день нет.")
-
 
         # если пользователь запросил от недели до месяца, выдаём график:
         if 6 <= (end_date - start_date).days <= 31:

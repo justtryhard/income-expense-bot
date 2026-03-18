@@ -1,6 +1,8 @@
 import sqlite3
 from contextlib import contextmanager
 from config import DB_NAME
+from zoneinfo import ZoneInfo
+from datetime import datetime
 
 
 class SQLiteConnection:
@@ -40,12 +42,16 @@ class HistoryRepository:
             );
             """)
 
-    def add_record(self, user_id: int, category: str, amount: int, comment: str):
+    def add_record(self, user_id: int, category: str, amount: int, comment: str, created_at: str = None):
+        if created_at is None:
+            # Текущее московское время в формате SQLite
+            msk_tz = ZoneInfo("Europe/Moscow")
+            created_at = datetime.now(msk_tz).strftime("%Y-%m-%d %H:%M:%S")
         with self.connection.get_connection() as conn:
             conn.execute("""
-            INSERT INTO history (user_id, category, amount, comment)
-            VALUES (?, ?, ?, ?)
-            """, (user_id, category, amount, comment))
+                INSERT INTO history (user_id, category, amount, comment, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, category, amount, comment, created_at))
 
     def get_stats_for_period(self, user_id: int, start_date, end_date):
         with self.connection.get_connection() as conn:
