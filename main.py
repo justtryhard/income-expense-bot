@@ -21,7 +21,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
 
 from config import API_TOKEN, DB_NAME, ALLOWED_USER_ID
-from db import SQLiteConnection, HistoryRepository
+from db import SQLiteConnection, HistorySchema, TransactionRepository, StatsRepository, DuplicateGuard
+
 
 # todo: Логирование
 logging.basicConfig(level=logging.INFO)
@@ -30,9 +31,15 @@ logger = logging.getLogger(__name__)
 # Инициализация
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+
 conn = SQLiteConnection(DB_NAME)
-repository = HistoryRepository(conn)
-repository.create_table()
+
+schema = HistorySchema(conn)
+transactions = TransactionRepository(conn)
+stats_repository = StatsRepository(conn)
+duplicate_guard = DuplicateGuard(conn)
+
+schema.create_table()
 
 
 #  FSM
@@ -133,12 +140,37 @@ async def add_amount(message: Message, state: FSMContext):
     category = data["category"]
 
     # Сохранение записи в БД (комментарий пустой, т.к. по ТЗ не нужен)
-    repository.add_record(
+    amount = int(message.text)
+
+    if duplicate_guard.is_recent_duplicate(
+            user_id=message.from_user.id,
+            category=category,
+            amount=amount,
+            seconds=300
+    ):
+        await message.answer(
+            "⚠️ Такая операция уже была добавлена недавно. Повтор не сохранён.",
+            reply_markup=main_menu
+        )
+        await state.clear()
+        return
+
+    is_inserted = transactions.add_record(
         user_id=message.from_user.id,
-        category=data["category"],
-        amount=int(message.text),
-        comment=""  # комментарий пустой т.к. не нужен по ТЗ, можно убрать поле из БД, но пока так
+        category=category,
+        amount=amount,
+        comment="", # комментарий пустой т.к. не нужен по ТЗ, можно убрать поле из БД, но пока так
+        telegram_message_id=message.message_id
     )
+
+    if not is_inserted:
+        await message.answer(
+            "⚠️ Эта операция уже была обработана. Повтор не сохранён.",
+            reply_markup=main_menu
+        )
+
+        await state.clear()
+        return
 
     if category == "income":  # доход
         photo_file = FSInputFile("media/get.jpg")
@@ -151,7 +183,6 @@ async def add_amount(message: Message, state: FSMContext):
 
     # await message.answer("Сохранено ✅", reply_markup=main_menu) # без картинки
     await state.clear()
-
 
 # Статистика
 @dp.message(F.text == "Статистика")
@@ -189,7 +220,7 @@ async def edit_type_callback(callback: CallbackQuery):
     """
     record_id = int(callback.data.split(":")[1])
 
-    record = repository.get_record_by_id(
+    record = transactions.get_record_by_id(
         record_id, callback.from_user.id
     )
 
@@ -200,7 +231,7 @@ async def edit_type_callback(callback: CallbackQuery):
     _, category, _ = record
     new_category = "expense" if category == "income" else "income"
 
-    repository.update_category(
+    transactions.update_category(
         record_id,
         callback.from_user.id,
         new_category
@@ -225,7 +256,7 @@ async def edit_get_id(message: Message, state: FSMContext):
 
     record_id = int(message.text)
 
-    record = repository.get_record_by_id(
+    record = transactions.get_record_by_id(
         record_id, message.from_user.id
     )
 
@@ -253,7 +284,7 @@ async def delete_callback(callback: CallbackQuery):
     """
     record_id = int(callback.data.split(":")[1])
 
-    repository.delete_record(
+    transactions.delete_record(
         record_id,
         callback.from_user.id
     )
@@ -291,7 +322,7 @@ async def process_new_amount(message: Message, state: FSMContext):
     data = await state.get_data()
     record_id = data["record_id"]
 
-    repository.update_amount(
+    transactions.update_amount(
         record_id,
         message.from_user.id,
         int(message.text)
@@ -343,7 +374,7 @@ async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarC
             await state.clear()
             return
 
-        stats = repository.get_stats_for_period(
+        stats = stats_repository.get_stats_for_period(
             callback.from_user.id, start_date, end_date
         )
         income_sum = stats['income_sum']
@@ -362,7 +393,7 @@ async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarC
         await callback.message.answer(text, reply_markup=main_menu)
 
         if start_date == end_date:
-            records = repository.get_records_by_date(
+            records = transactions.get_records_by_date(
                 callback.from_user.id, start_date
             )
 
@@ -378,7 +409,7 @@ async def stats_end_date(callback: CallbackQuery, callback_data: SimpleCalendarC
 
         # если пользователь запросил от недели до месяца, выдаём график:
         if 6 <= (end_date - start_date).days <= 31:
-            daily_data = repository.get_daily_stats(
+            daily_data = stats_repository.get_daily_stats(
                 callback.from_user.id, start_date, end_date
             )
 
