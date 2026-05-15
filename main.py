@@ -133,12 +133,37 @@ async def add_amount(message: Message, state: FSMContext):
     category = data["category"]
 
     # Сохранение записи в БД (комментарий пустой, т.к. по ТЗ не нужен)
-    repository.add_record(
+    amount = int(message.text)
+
+    if repository.is_recent_duplicate(
+            user_id=message.from_user.id,
+            category=category,
+            amount=amount,
+            seconds=300
+    ):
+        await message.answer(
+            "⚠️ Такая операция уже была добавлена недавно. Повтор не сохранён.",
+            reply_markup=main_menu
+        )
+        await state.clear()
+        return
+
+    is_inserted = repository.add_record(
         user_id=message.from_user.id,
-        category=data["category"],
-        amount=int(message.text),
-        comment=""  # комментарий пустой т.к. не нужен по ТЗ, можно убрать поле из БД, но пока так
+        category=category,
+        amount=amount,
+        comment="", # комментарий пустой т.к. не нужен по ТЗ, можно убрать поле из БД, но пока так
+        telegram_message_id=message.message_id
     )
+
+    if not is_inserted:
+        await message.answer(
+            "⚠️ Эта операция уже была обработана. Повтор не сохранён.",
+            reply_markup=main_menu
+        )
+
+        await state.clear()
+        return
 
     if category == "income":  # доход
         photo_file = FSInputFile("media/get.jpg")
@@ -151,7 +176,6 @@ async def add_amount(message: Message, state: FSMContext):
 
     # await message.answer("Сохранено ✅", reply_markup=main_menu) # без картинки
     await state.clear()
-
 
 # Статистика
 @dp.message(F.text == "Статистика")

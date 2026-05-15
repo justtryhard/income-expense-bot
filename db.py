@@ -38,20 +38,26 @@ class HistoryRepository:
                 category TEXT NOT NULL,
                 amount INTEGER NOT NULL,
                 comment TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP NOT NULL,
+                telegram_message_id INTEGER NOT NULL,
+                UNIQUE(user_id, telegram_message_id)
             );
             """)
 
-    def add_record(self, user_id: int, category: str, amount: int, comment: str, created_at: str = None):
+    def add_record(self, user_id: int, category: str, amount: int, comment: str,  telegram_message_id: int, created_at: str = None):
         if created_at is None:
             # Текущее московское время в формате SQLite
             msk_tz = ZoneInfo("Europe/Moscow")
             created_at = datetime.now(msk_tz).strftime("%Y-%m-%d %H:%M:%S")
         with self.connection.get_connection() as conn:
-            conn.execute("""
-                INSERT INTO history (user_id, category, amount, comment, created_at)
-                VALUES (?, ?, ?, ?, ?)
-            """, (user_id, category, amount, comment, created_at))
+            cursor = conn.execute("""
+                INSERT OR IGNORE INTO history (
+                    user_id, category, amount, comment, created_at, telegram_message_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (user_id, category, amount, comment, created_at, telegram_message_id))
+
+            return cursor.rowcount > 0
 
     def get_stats_for_period(self, user_id: int, start_date, end_date):
         with self.connection.get_connection() as conn:
@@ -129,3 +135,23 @@ class HistoryRepository:
                 DELETE FROM history
                 WHERE id = ? AND user_id = ?
             """, (record_id, user_id))
+
+    def is_recent_duplicate(
+            self,
+            user_id: int,
+            category: str,
+            amount: int,
+            seconds: int = 300
+    ) -> bool:
+        with self.connection.get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT id
+                FROM history
+                WHERE user_id = ?
+                  AND category = ?
+                  AND amount = ?
+                  AND datetime(created_at) >= datetime('now', 'localtime', ?)
+                LIMIT 1
+            """, (user_id, category, amount, f"-{seconds} seconds"))
+
+            return cursor.fetchone() is not None
