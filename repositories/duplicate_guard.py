@@ -2,6 +2,10 @@ from database.connection import SQLiteConnection
 
 
 class DuplicateGuard:
+    """
+    Класс отвечает за защиту от дублирования операций
+    Проверяет одинаковые операции, защищает от сетевых лагов и дабл кликов
+    """
     def __init__(self, connection: SQLiteConnection):
         self.connection = connection
 
@@ -10,7 +14,7 @@ class DuplicateGuard:
         user_id: int,
         category: str,
         amount: int,
-        seconds: int = 300
+        seconds: int = 300      # значение в секундах, по которому фильтруется поиск дубликатов
     ) -> bool:
         with self.connection.get_connection() as conn:
             cursor = conn.execute("""
