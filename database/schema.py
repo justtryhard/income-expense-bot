@@ -2,6 +2,8 @@ from database.connection import SQLiteConnection
 
 
 class HistorySchema:
+    """Класс отвечает только за создание таблиц и структуру БД
+    Коннекшн получает извне (dependency injection)"""
     def __init__(self, connection: SQLiteConnection):
         self.connection = connection
 

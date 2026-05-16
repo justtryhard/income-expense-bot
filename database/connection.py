@@ -3,6 +3,8 @@ from contextlib import contextmanager
 
 
 class SQLiteConnection:
+    """Класс подключения к БД
+    Отвечает за создание подключения, коммит и закрытие"""
     def __init__(self, db_name: str):
         self.db_name = db_name
 
@@ -13,4 +15,5 @@ class SQLiteConnection:
             yield conn
             conn.commit()
         finally:
+            # соединение закрывается, даже если произошла ошибка
             conn.close()
