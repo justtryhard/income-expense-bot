@@ -12,19 +12,25 @@ from config import ALLOWED_USER_ID
 from keyboards.keyboards import main_menu
 from states import StatsPeriod
 
+# Хендлеры статистики
+# Не работают напрямую с БД
+# stats_service инкапсулирует всю бизнес логику статистики
+
 
 def is_allowed(user_id: int) -> bool:
+    """Проверка пользователя"""
     return user_id == ALLOWED_USER_ID
 
 
 def register_stats_handlers(dp: Dispatcher, stats_service):
-
+    """Регистрация хендлеров статистики"""
     @dp.message(F.text == "Статистика")
     async def stats_start(message: Message, state: FSMContext):
         if not is_allowed(message.from_user.id):
             await message.answer("🚫 Доступ запрещен!")
             return
 
+        # переход в состояние выбора начальной даты
         await state.set_state(StatsPeriod.waiting_for_start)
         calendar = SimpleCalendar()
 
@@ -33,6 +39,7 @@ def register_stats_handlers(dp: Dispatcher, stats_service):
             reply_markup=await calendar.start_calendar()
         )
 
+    # выбор начальной даты
     @dp.callback_query(SimpleCalendarCallback.filter(), StatsPeriod.waiting_for_start)
     async def stats_start_date(
         callback: CallbackQuery,
@@ -53,6 +60,7 @@ def register_stats_handlers(dp: Dispatcher, stats_service):
 
         await callback.answer()
 
+    # выбор конечной даты
     @dp.callback_query(SimpleCalendarCallback.filter(), StatsPeriod.waiting_for_end)
     async def stats_end_date(
             callback: CallbackQuery,
@@ -73,6 +81,7 @@ def register_stats_handlers(dp: Dispatcher, stats_service):
                 await callback.answer()
                 return
 
+            # получение статистики
             stats = stats_service.get_period_stats(
                 callback.from_user.id,
                 start_date,
@@ -95,6 +104,7 @@ def register_stats_handlers(dp: Dispatcher, stats_service):
 
             await callback.message.answer(text, reply_markup=main_menu)
 
+            # если выбран 1 день, показывается список операций
             if start_date == end_date:
                 records = stats_service.get_records_for_day(
                     callback.from_user.id,
@@ -110,6 +120,8 @@ def register_stats_handlers(dp: Dispatcher, stats_service):
                     await callback.message.answer(text_records)
                 else:
                     await callback.message.answer("Операций за этот день нет.")
+
+            # если срок от 7 до 31 дня - строится график
             if 6 <= (end_date - start_date).days <= 31:
                 daily_data = stats_service.get_daily_stats(
                     callback.from_user.id,
@@ -128,6 +140,7 @@ def register_stats_handlers(dp: Dispatcher, stats_service):
 
                         data_dict[d] = (inc, exp)
 
+                    # данные для matplotlib
                     dates = []
                     incomes = []
                     expenses = []

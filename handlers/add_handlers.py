@@ -8,12 +8,17 @@ from states import AddEntry
 from utils.validators import is_positive_int
 
 
+# Этот модуль отвечает за хендлеры добавления операций
+# старт добавления дохода, расхода, ввод суммы, валидацию суммы, вызов transaction_service
+# Хэндлеры не работают напрямую с Б
+
 def is_allowed(user_id: int) -> bool:
+    """Проверка доступа польщователя"""
     return user_id == ALLOWED_USER_ID
 
 
 def register_add_handlers(dp: Dispatcher, transaction_service):
-
+    """Регистрация хэндлеров добавления"""
     @dp.message(F.text.in_(["Новый расход", "Новый доход"]))
     async def add_start(message: Message, state: FSMContext):
         if not is_allowed(message.from_user.id):
@@ -28,6 +33,7 @@ def register_add_handlers(dp: Dispatcher, transaction_service):
 
     @dp.message(AddEntry.waiting_for_amount)
     async def add_amount(message: Message, state: FSMContext):
+        """Обработка введённой суммы"""
         if not is_positive_int(message.text):
             await message.answer("❌ Сумма должна быть целым положительным числом.")
             return
@@ -36,6 +42,7 @@ def register_add_handlers(dp: Dispatcher, transaction_service):
         category = data["category"]
         amount = int(message.text)
 
+        # ниже добавление операции через service (проверка дубликатов, идемпотентности)
         result = transaction_service.add_transaction(
             user_id=message.from_user.id,
             category=category,
@@ -48,6 +55,7 @@ def register_add_handlers(dp: Dispatcher, transaction_service):
             await state.clear()
             return
 
+        # далее подбор картинки под тип операции
         if category == "income":
             photo_file = FSInputFile("media/get.jpg")
             caption = "✅ Доход получен!"
