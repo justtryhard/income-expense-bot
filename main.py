@@ -25,18 +25,23 @@ logging.basicConfig(level=logging.INFO)
 
 
 async def main():
-    bot = Bot(token=API_TOKEN)
-    dp = Dispatcher(storage=MemoryStorage())
+    """
+    Главная функция приложения
+    """
+    bot = Bot(token=API_TOKEN)  # создание ТГ бота
+    dp = Dispatcher(storage=MemoryStorage()) # создание диспетчера
 
-    connection = SQLiteConnection(DB_NAME)
+    connection = SQLiteConnection(DB_NAME) # подключение к БД
 
-    schema = HistorySchema(connection)
+    schema = HistorySchema(connection) # создание таблиц БД
     schema.create_table()
 
+    # создание репозиториев:
     transaction_repository = TransactionRepository(connection)
     stats_repository = StatsRepository(connection)
     duplicate_guard = DuplicateGuard(connection)
 
+    # создание сервисов, которые используют репозитории
     transaction_service = TransactionService(
         transaction_repository=transaction_repository,
         duplicate_guard=duplicate_guard
@@ -47,13 +52,16 @@ async def main():
         transaction_repository=transaction_repository
     )
 
+    # регистрация хендлеров каждый со своими роутами в диспетчере
     register_common_handlers(dp)
     register_add_handlers(dp, transaction_service)
     register_stats_handlers(dp, stats_service)
     register_edit_handlers(dp, transaction_service)
 
+    # запуск поллинга
     await dp.start_polling(bot)
 
 
+# точка входа
 if __name__ == "__main__":
     asyncio.run(main())
