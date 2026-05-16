@@ -1,15 +1,11 @@
 from aiogram import Dispatcher, F
-from aiogram.types import Message, FSInputFile
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+from aiogram.types import Message, FSInputFile
 
 from config import ALLOWED_USER_ID
 from keyboards.keyboards import main_menu, cancel_kb
+from states import AddEntry
 from utils.validators import is_positive_int
-
-
-class AddEntry(StatesGroup):
-    waiting_for_amount = State()
 
 
 def is_allowed(user_id: int) -> bool:

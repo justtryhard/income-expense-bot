@@ -15,6 +15,7 @@ from repositories.duplicate_guard import DuplicateGuard
 from services.transaction_service import TransactionService
 from services.stats_service import StatsService
 
+from handlers.common_handlers import register_common_handlers
 from handlers.add_handlers import register_add_handlers
 from handlers.stats_handlers import register_stats_handlers
 from handlers.edit_handlers import register_edit_handlers
@@ -46,6 +47,7 @@ async def main():
         transaction_repository=transaction_repository
     )
 
+    register_common_handlers(dp)
     register_add_handlers(dp, transaction_service)
     register_stats_handlers(dp, stats_service)
     register_edit_handlers(dp, transaction_service)
