@@ -2,10 +2,18 @@ from database.connection import SQLiteConnection
 
 
 class StatsRepository:
+    """
+    Репозиторий статистики
+    Отвечает только за SELECT-запросы статистики
+    """
     def __init__(self, connection: SQLiteConnection):
         self.connection = connection
 
     def get_stats_for_period(self, user_id: int, start_date, end_date):
+        """
+        Получение общей статистики за период
+        Возвращает сумму доходов и их кол-во, сумму расходов и их колво
+        """
         with self.connection.get_connection() as conn:
             cursor = conn.execute("""
             SELECT 
@@ -27,6 +35,10 @@ class StatsRepository:
             }
 
     def get_daily_stats(self, user_id: int, start_date, end_date):
+        """
+        Получение статистики по дням
+        Используется для графика
+        """
         with self.connection.get_connection() as conn:
             cursor = conn.execute("""
                 SELECT 
