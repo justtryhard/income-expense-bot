@@ -59,7 +59,7 @@ pip install -r requirements.txt
 
 4. Сконфигурировать окружение
 
-Заменить значения в config.py:
+Создать в корне файл .env с содержимым:
 
 ```
 API_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
