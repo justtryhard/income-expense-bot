@@ -7,22 +7,27 @@ from keyboards.keyboards import main_menu, cancel_kb, edit_actions_kb
 from states import EditEntry, EditAmount
 from utils.validators import is_positive_int
 
+# Хендлеры редактирования операций
+# Не работают напрямую с БД
 
 def is_allowed(user_id: int) -> bool:
+    """ Проверка доступа"""
     return user_id == ALLOWED_USER_ID
 
 
 def register_edit_handlers(dp: Dispatcher, transaction_service):
-
+    """Начало редактирования (нажатие кнопки)"""
     @dp.message(F.text == "Редактировать")
     async def edit_start(message: Message, state: FSMContext):
         if not is_allowed(message.from_user.id):
             await message.answer("🚫 Доступ запрещен!")
             return
 
+        # ожидание ввода айди
         await state.set_state(EditEntry.waiting_for_id)
         await message.answer("Введи ID записи:", reply_markup=cancel_kb)
 
+    # далее получение ID записи
     @dp.message(EditEntry.waiting_for_id)
     async def edit_get_id(message: Message, state: FSMContext):
         if not message.text.isdigit():
@@ -49,6 +54,7 @@ def register_edit_handlers(dp: Dispatcher, transaction_service):
 
         await state.clear()
 
+    # Изменение типа операции
     @dp.callback_query(F.data.startswith("edit_type:"))
     async def edit_type_callback(callback: CallbackQuery):
         record_id = int(callback.data.split(":")[1])
@@ -69,6 +75,7 @@ def register_edit_handlers(dp: Dispatcher, transaction_service):
         )
         await callback.answer()
 
+    # Удаление записи
     @dp.callback_query(F.data.startswith("delete:"))
     async def delete_callback(callback: CallbackQuery):
         record_id = int(callback.data.split(":")[1])
@@ -85,6 +92,7 @@ def register_edit_handlers(dp: Dispatcher, transaction_service):
         )
         await callback.answer()
 
+    # Начало изменения суммы
     @dp.callback_query(F.data.startswith("edit_amount:"))
     async def edit_amount_callback(callback: CallbackQuery, state: FSMContext):
         record_id = int(callback.data.split(":")[1])
@@ -95,6 +103,7 @@ def register_edit_handlers(dp: Dispatcher, transaction_service):
         await callback.message.answer("Введи новую сумму:", reply_markup=cancel_kb)
         await callback.answer()
 
+    # Обработка новой суммы
     @dp.message(EditAmount.waiting_for_amount)
     async def process_new_amount(message: Message, state: FSMContext):
         if not is_positive_int(message.text):
