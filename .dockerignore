@@ -1,0 +1,8 @@
+.git
+.idea
+.vscode
+__pycache__
+*.pyc
+.env
+finance.db
+*.db

@@ -1,0 +1,9 @@
+services:
+  bot:
+    build: .
+    container_name: income-expense-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./finance.db:/app/finance.db
