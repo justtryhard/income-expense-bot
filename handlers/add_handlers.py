@@ -51,7 +51,7 @@ def register_add_handlers(dp: Dispatcher, transaction_service):
         )
 
         if not result["success"]:
-            await message.answer(f"⚠️ Не сохранено, причина: {result["reason"]}", reply_markup=main_menu)
+            await message.answer(f"⚠️ Не сохранено, причина: {result['reason']}", reply_markup=main_menu)
             await state.clear()
             return
 
