@@ -20,6 +20,8 @@ from handlers.add_handlers import register_add_handlers
 from handlers.stats_handlers import register_stats_handlers
 from handlers.edit_handlers import register_edit_handlers
 
+from middlewares.access import AccessMiddleware
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,6 +32,8 @@ async def main():
     """
     bot = Bot(token=API_TOKEN)  # создание ТГ бота
     dp = Dispatcher(storage=MemoryStorage()) # создание диспетчера
+    dp.message.middleware(AccessMiddleware())
+    dp.callback_query.middleware(AccessMiddleware())
 
     connection = SQLiteConnection(DB_NAME) # подключение к БД
 
