@@ -2,7 +2,6 @@ from aiogram import Dispatcher, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, FSInputFile
 
-from config import ALLOWED_USER_ID
 from keyboards.keyboards import main_menu, cancel_kb, edit_actions_kb
 from states import EditEntry, EditAmount
 from utils.validators import is_positive_int
@@ -10,19 +9,10 @@ from utils.validators import is_positive_int
 # Хендлеры редактирования операций
 # Не работают напрямую с БД
 
-def is_allowed(user_id: int) -> bool:
-    """ Проверка доступа"""
-    return user_id == ALLOWED_USER_ID
-
-
 def register_edit_handlers(dp: Dispatcher, transaction_service):
     """Начало редактирования (нажатие кнопки)"""
     @dp.message(F.text == "Редактировать")
     async def edit_start(message: Message, state: FSMContext):
-        if not is_allowed(message.from_user.id):
-            await message.answer("🚫 Доступ запрещен!")
-            return
-
         # ожидание ввода айди
         await state.set_state(EditEntry.waiting_for_id)
         await message.answer("Введи ID записи:", reply_markup=cancel_kb)

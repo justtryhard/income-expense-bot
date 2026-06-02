@@ -8,7 +8,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
 
-from config import ALLOWED_USER_ID
 from keyboards.keyboards import main_menu
 from states import StatsPeriod
 
@@ -17,19 +16,10 @@ from states import StatsPeriod
 # stats_service инкапсулирует всю бизнес логику статистики
 
 
-def is_allowed(user_id: int) -> bool:
-    """Проверка пользователя"""
-    return user_id == ALLOWED_USER_ID
-
-
 def register_stats_handlers(dp: Dispatcher, stats_service):
     """Регистрация хендлеров статистики"""
     @dp.message(F.text == "Статистика")
     async def stats_start(message: Message, state: FSMContext):
-        if not is_allowed(message.from_user.id):
-            await message.answer("🚫 Доступ запрещен!")
-            return
-
         # переход в состояние выбора начальной даты
         await state.set_state(StatsPeriod.waiting_for_start)
         calendar = SimpleCalendar()

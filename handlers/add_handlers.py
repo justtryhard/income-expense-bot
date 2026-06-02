@@ -2,7 +2,6 @@ from aiogram import Dispatcher, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, FSInputFile
 
-from config import ALLOWED_USER_ID
 from keyboards.keyboards import main_menu, cancel_kb
 from states import AddEntry
 from utils.validators import is_positive_int
@@ -12,19 +11,11 @@ from utils.validators import is_positive_int
 # старт добавления дохода, расхода, ввод суммы, валидацию суммы, вызов transaction_service
 # Хэндлеры не работают напрямую с Б
 
-def is_allowed(user_id: int) -> bool:
-    """Проверка доступа польщователя"""
-    return user_id == ALLOWED_USER_ID
-
 
 def register_add_handlers(dp: Dispatcher, transaction_service):
     """Регистрация хэндлеров добавления"""
     @dp.message(F.text.in_(["Новый расход", "Новый доход"]))
     async def add_start(message: Message, state: FSMContext):
-        if not is_allowed(message.from_user.id):
-            await message.answer("🚫 Доступ запрещен!")
-            return
-
         category = "expense" if message.text == "Новый расход" else "income"
 
         await state.update_data(category=category)
