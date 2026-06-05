@@ -58,3 +58,20 @@ def test_add_transaction_rejects_duplicate():
 
     assert result["success"] is False
     assert "Одинаковый тип и сумма" in result["reason"]
+
+def test_add_transaction_returns_error_when_repository_fails():
+    service = TransactionService(
+        transaction_repository=FakeTransactionRepository(inserted=False),
+        duplicate_guard=FakeDuplicateGuard(is_duplicate=False),
+    )
+
+    result = service.add_transaction(
+        user_id=1,
+        category="expense",
+        amount=500,
+        comment="coffee",
+        telegram_message_id=100,
+    )
+
+    assert result["success"] is False
+    assert result["reason"] == "Дубликат сообщения"
