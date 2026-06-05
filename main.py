@@ -31,6 +31,7 @@ async def main():
     Главная функция приложения
     """
     bot = Bot(token=API_TOKEN)  # создание ТГ бота
+    await healthcheck(bot)
     dp = Dispatcher(storage=MemoryStorage()) # создание диспетчера
     dp.message.middleware(AccessMiddleware())
     dp.callback_query.middleware(AccessMiddleware())
@@ -65,6 +66,13 @@ async def main():
     # запуск поллинга
     await dp.start_polling(bot)
 
+
+async def healthcheck(bot: Bot) -> None:
+    """
+    Проверка, что бот может подключиться к telegram api
+    """
+    me = await bot.get_me()
+    logging.info("Bot started: @%s", me.username)
 
 # точка входа
 if __name__ == "__main__":
