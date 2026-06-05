@@ -31,40 +31,44 @@ async def main():
     Главная функция приложения
     """
     bot = Bot(token=API_TOKEN)  # создание ТГ бота
-    await healthcheck(bot)
-    dp = Dispatcher(storage=MemoryStorage()) # создание диспетчера
-    dp.message.middleware(AccessMiddleware())
-    dp.callback_query.middleware(AccessMiddleware())
+    try:
+        await healthcheck(bot)
+        dp = Dispatcher(storage=MemoryStorage()) # создание диспетчера
+        dp.message.middleware(AccessMiddleware())
+        dp.callback_query.middleware(AccessMiddleware())
 
-    connection = SQLiteConnection(DB_NAME) # подключение к БД
+        connection = SQLiteConnection(DB_NAME) # подключение к БД
 
-    schema = HistorySchema(connection) # создание таблиц БД
-    schema.create_table()
+        schema = HistorySchema(connection) # создание таблиц БД
+        schema.create_table()
 
-    # создание репозиториев:
-    transaction_repository = TransactionRepository(connection)
-    stats_repository = StatsRepository(connection)
-    duplicate_guard = DuplicateGuard(connection)
+        # создание репозиториев:
+        transaction_repository = TransactionRepository(connection)
+        stats_repository = StatsRepository(connection)
+        duplicate_guard = DuplicateGuard(connection)
 
-    # создание сервисов, которые используют репозитории
-    transaction_service = TransactionService(
-        transaction_repository=transaction_repository,
-        duplicate_guard=duplicate_guard
-    )
+        # создание сервисов, которые используют репозитории
+        transaction_service = TransactionService(
+            transaction_repository=transaction_repository,
+            duplicate_guard=duplicate_guard
+        )
 
-    stats_service = StatsService(
-        stats_repository=stats_repository,
-        transaction_repository=transaction_repository
-    )
+        stats_service = StatsService(
+            stats_repository=stats_repository,
+            transaction_repository=transaction_repository
+        )
 
-    # регистрация хендлеров каждый со своими роутами в диспетчере
-    register_common_handlers(dp)
-    register_add_handlers(dp, transaction_service)
-    register_stats_handlers(dp, stats_service)
-    register_edit_handlers(dp, transaction_service)
+        # регистрация хендлеров каждый со своими роутами в диспетчере
+        register_common_handlers(dp)
+        register_add_handlers(dp, transaction_service)
+        register_stats_handlers(dp, stats_service)
+        register_edit_handlers(dp, transaction_service)
 
-    # запуск поллинга
-    await dp.start_polling(bot)
+        # запуск поллинга
+        await dp.start_polling(bot)
+    finally:
+        logging.info("Shutting down")
+        await bot.session.close()
 
 
 async def healthcheck(bot: Bot) -> None:
