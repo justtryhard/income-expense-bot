@@ -21,16 +21,24 @@ class TransactionService:
         Перед записью проверяем:
         1 - не было ли похожей операции недавно
         2 - не отправвлялось ли это же телеграм сообщение"""
-        if self.duplicate_guard.is_recent_duplicate(user_id=user_id, category=category, amount=amount):
-            return {"success": False, "reason": "Одинаковый тип и сумма за установленное время"}
+        if self.duplicate_guard.is_recent_duplicate(
+                user_id=user_id,
+                category=category,
+                amount=amount
+        ):
+            return {
+                "success": False,
+                "reason": "Одинаковый тип и сумма за установленное время"
+            }
         # проверка на одинаковые операции за последние N секунд
 
-        inserted = self.transaction_repository.add_record(              # попытка сохранить запись
+        inserted = self.transaction_repository.add_record( # попытка сохранить запись
             user_id=user_id,
             category=category,
             amount=amount,
             comment=comment,
-            telegram_message_id=telegram_message_id      # защита от повторной обработки одного telegram message
+            telegram_message_id=telegram_message_id
+            # ^защита от повторной обработки одного telegram message
         )
 
         # если add_record вернул False, значит это дубликат telegram message_id

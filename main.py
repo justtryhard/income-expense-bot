@@ -7,21 +7,16 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config import API_TOKEN, DB_NAME
 from database.connection import SQLiteConnection
 from database.schema import HistorySchema
-
-from repositories.transaction_repository import TransactionRepository
-from repositories.stats_repository import StatsRepository
-from repositories.duplicate_guard import DuplicateGuard
-
-from services.transaction_service import TransactionService
-from services.stats_service import StatsService
-
-from handlers.common_handlers import register_common_handlers
 from handlers.add_handlers import register_add_handlers
-from handlers.stats_handlers import register_stats_handlers
+from handlers.common_handlers import register_common_handlers
 from handlers.edit_handlers import register_edit_handlers
-
+from handlers.stats_handlers import register_stats_handlers
 from middlewares.access import AccessMiddleware
-
+from repositories.duplicate_guard import DuplicateGuard
+from repositories.stats_repository import StatsRepository
+from repositories.transaction_repository import TransactionRepository
+from services.stats_service import StatsService
+from services.transaction_service import TransactionService
 
 logging.basicConfig(level=logging.INFO)
 

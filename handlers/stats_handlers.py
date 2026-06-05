@@ -1,11 +1,10 @@
 import io
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 
 import matplotlib.pyplot as plt
-from aiogram import Dispatcher, F
-from aiogram import types
+from aiogram import Dispatcher, F, types
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
 
 from keyboards.keyboards import main_menu
@@ -86,7 +85,7 @@ def register_stats_handlers(dp: Dispatcher, stats_service):
 
             text = (
                 f"📊 Статистика за\n"
-                f"{start_date.strftime('%Y-%m-%d')} — {end_date.strftime('%Y-%m-%d')}\n\n"
+                f"{start_date.strftime('%Y-%m-%d')}—{end_date.strftime('%Y-%m-%d')}\n\n"
                 f"Доходы: {income_sum} ₽ (операций: {income_count})\n"
                 f"Расходы: {expense_sum} ₽ (операций: {expense_count})\n\n"
                 f"Итог: {balance} ₽"

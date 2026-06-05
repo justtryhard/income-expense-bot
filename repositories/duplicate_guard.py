@@ -14,7 +14,7 @@ class DuplicateGuard:
         user_id: int,
         category: str,
         amount: int,
-        seconds: int = 300      # значение в секундах, по которому фильтруется поиск дубликатов
+        seconds: int = 300   # значение в сек, по которому фильтруется поиск дубликатов
     ) -> bool:
         with self.connection.get_connection() as conn:
             cursor = conn.execute("""

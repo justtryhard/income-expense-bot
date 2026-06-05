@@ -1,5 +1,4 @@
 import logging
-
 from typing import Any, Awaitable, Callable
 
 from aiogram import BaseMiddleware
@@ -7,19 +6,23 @@ from aiogram.types import CallbackQuery, Message, TelegramObject, User
 
 from config import ALLOWED_USER_ID
 
-
 logger = logging.getLogger(__name__)
 
 
 class AccessMiddleware(BaseMiddleware):
     """
     Глобальная проверка доступа.
-    Бот предназначен для личного использования, поэтому обрабатывает сообщения только от пользователя,
+    Бот предназначен для личного использования,
+    поэтому обрабатывает сообщения только от пользователя,
     указанного в ALLOWED_USER_ID.
-    Middleware позволяет убрать дублирующиеся проверки из каждого хендлера и централизовать контроль доступа.
+    Middleware позволяет убрать дублирующиеся проверки из каждого
+    хендлера и централизовать контроль доступа.
     """
     async def __call__(self,
-                       handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+                       handler: Callable[
+                           [TelegramObject, dict[str, Any]]
+                           , Awaitable[Any]
+                       ],
                        event: TelegramObject,
                        data: dict[str, Any]
                        ) -> Any:

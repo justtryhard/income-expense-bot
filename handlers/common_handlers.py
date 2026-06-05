@@ -1,7 +1,7 @@
 from aiogram import Dispatcher, F
-from aiogram.types import Message
-from aiogram.fsm.context import FSMContext
 from aiogram.filters import CommandStart, StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message
 
 from keyboards.keyboards import main_menu
 

@@ -1,9 +1,9 @@
 from aiogram import Dispatcher, F
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery, FSInputFile
+from aiogram.types import CallbackQuery, FSInputFile, Message
 
-from keyboards.keyboards import main_menu, cancel_kb, edit_actions_kb
-from states import EditEntry, EditAmount
+from keyboards.keyboards import cancel_kb, edit_actions_kb, main_menu
+from states import EditAmount, EditEntry
 from utils.validators import is_positive_int
 
 # Хендлеры редактирования операций

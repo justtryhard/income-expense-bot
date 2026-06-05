@@ -1,7 +1,11 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton,InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 
-
-main_menu = ReplyKeyboardMarkup(    # Основная клавиатура бота, показывается пользователю после /start
+main_menu = ReplyKeyboardMarkup(   # Основная клава бота,показывается юзеру после /start
     keyboard=[
         [KeyboardButton(text="Новый расход")],
         [KeyboardButton(text="Новый доход")],
